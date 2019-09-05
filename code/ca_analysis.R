@@ -30,6 +30,7 @@ ca_frpm <- ca_frpm %>% clean_names()
 ca_el <-
   read_delim(here::here("data", "raw", "fileselsch.txt"), delim = "\t")
 
+# Demographic Bucket
 # We want to look at race/ethnicity composition by district,
 # We only want race/ethnicity, so we aggregate the number for each race by district
 # Then calculate the proportion by race for each district
@@ -53,12 +54,12 @@ ca_enroll_district <-
   mutate(prop = enr_total/sum(enr_total)) %>% 
   select(-enr_total) %>% 
   spread(ethnic_name, prop, -1, fill = NA) %>% 
-  mutate(demo_bucket = case_when(White < .5 ~ "Majority Non-White",
-                                  TRUE ~ "Majority White"))
+  mutate(demo_bucket = case_when(White > .5 ~ "Majority White",
+                                  TRUE ~ "Majority Non-White"))
   
 nrow(ca_enroll_district) # 1034 districts
 
-# We want to create a bucket for FRPM.
+# FRPM Bucket
 
 ca_frpm_district <-
   ca_frpm %>% 
@@ -75,10 +76,37 @@ summary(ca_frpm_district$district_frpm_pct) # let's see what the data looks like
 sum(is.na(ca_frpm_district$frpm_bucket))
 nrow(ca_frpm_district)
 
+# EL Bucket
+
+ca_el_sum <-
+  ca_el %>% 
+  clean_names() %>% 
+  mutate(district_code = str_sub(cds, 3, 7)) %>% 
+  select(district_code, total_el) %>% 
+  group_by(district_code) %>% 
+  summarise(total_el = sum(total_el, na.rm = T))
+
+ca_enroll_district_n <- # need enrollment total for districts to calculate percentages
+  ca_enroll %>% 
+  mutate(district_code = str_sub(cds_code, 3, 7)) %>% 
+  select(district_code, enr_total) %>% 
+  group_by(district_code) %>% 
+  summarise(enr_total = sum(enr_total, na.rm = T))
+
+ca_el_district <-
+  left_join(ca_el_sum, ca_enroll_district_n) %>% 
+  mutate(district_el_pct = total_el/enr_total,
+         el_bucket = case_when(district_el_pct > .15 ~ "More than 15% EL Designated",
+                               TRUE ~ "Less than 15% EL Designated"))
+  
+summary(ca_el_district$district_el_pct) # let's see what the data looks like
+nrow(ca_el_district) # only 973 districts with el data
+
 # join the datasets
 
 full_district_data <-
-  full_join(ca_enroll_district, ca_frpm_district, by = "district_code")
+  full_join(ca_enroll_district, ca_frpm_district, by = "district_code") %>% 
+  left_join(., ca_el_district)
 
 sum(is.na(full_district_data$frpm_bucket))
 nrow(full_district_data)
