@@ -122,5 +122,5 @@ grouper <- function(data, ...) {
 
 modal <- 
   full_district_data %>% 
-  grouper(demo_bucket, frpm_bucket)
+  grouper(demo_bucket, frpm_bucket, el_bucket)
 
